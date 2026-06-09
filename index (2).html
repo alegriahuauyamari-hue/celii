@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Estudiantes y Asistencias</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        :root { --primary: #4F46E5; --bg: #F3F4F6; --text: #1F2937; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1, h2 { text-align: center; color: var(--primary); }
+        .tabs { display: flex; justify-content: center; margin-bottom: 20px; gap: 10px; flex-wrap: wrap; }
+        button { background-color: var(--primary); color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; transition: 0.3s; font-weight: bold; }
+        button:hover { background-color: #4338CA; }
+        button.danger { background-color: #EF4444; }
+        button.danger:hover { background-color: #DC2626; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #E5E7EB; }
+        th { background-color: var(--primary); color: white; }
+        .hidden { display: none; }
+        #reader { width: 100%; max-width: 400px; margin: 20px auto; }
+        .action-btns { display: flex; gap: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🏫 Gestión Escolar Interactiva</h1>
+    
+    <div class="tabs">
+        <button onclick="showSection('students-section')">👥 Estudiantes</button>
+        <button onclick="showSection('attendance-section')">📅 Control de Asistencia</button>
+        <button onclick="exportData()" style="background-color: #10B981;">💾 Exportar Backup (JS/JSON)</button>
+    </div>
+
+    <div id="students-section">
+        <h2>Lista de Estudiantes</h2>
+        <button onclick="addStudent()">+ Nuevo Estudiante</button>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>DNI</th>
+                        <th>Nombre</th>
+                        <th>Edad</th>
+                        <th>Género</th>
+                        <th>Teléfono</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="students-table-body">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="attendance-section" class="hidden">
+        <h2>Registro de Asistencias (QR)</h2>
+        <p style="text-align: center;">El sistema leerá el <strong>DNI</strong> del estudiante a través del código QR.</p>
+        <div style="text-align: center;">
+            <button onclick="startScanner()">📷 Iniciar Escáner de QR</button>
+            <button onclick="stopScanner()" class="danger">Detener Escáner</button>
+        </div>
+        <div id="reader"></div>
+
+        <h3>Historial de Asistencias Hoy</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha y Hora</th>
+                    <th>Estudiante</th>
+                    <th>DNI</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody id="attendance-table-body">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // 1. Datos iniciales (20 registros simulados)
+    let students = [
+        { dni: "71234567", nombre: "Juan Pérez", edad: 20, genero: "Masculino", telefono: "987654321" },
+        { dni: "72345678", nombre: "María Gómez", edad: 22, genero: "Femenino", telefono: "912345678" },
+        { dni: "73456789", nombre: "Luis Rojas", edad: 19, genero: "Masculino", telefono: "923456789" },
+        { dni: "74567890", nombre: "Ana Silvia", edad: 21, genero: "Femenino", telefono: "934567890" },
+        { dni: "75678901", nombre: "Carlos Mendoza", edad: 23, genero: "Masculino", telefono: "945678901" },
+        { dni: "76789012", nombre: "Lucía Castro", edad: 18, genero: "Femenino", telefono: "956789012" },
+        { dni: "77890123", nombre: "Jorge Quispe", edad: 24, genero: "Masculino", telefono: "967890123" },
+        { dni: "78901234", nombre: "Rosa Mamani", edad: 20, genero: "Femenino", telefono: "978901234" },
+        { dni: "79012345", nombre: "Diego Flores", edad: 22, genero: "Masculino", telefono: "989012345" },
+        { dni: "70123456", nombre: "Valeria Vargas", edad: 19, genero: "Femenino", telefono: "990123456" },
+        { dni: "71234568", nombre: "Miguel Sánchez", edad: 21, genero: "Masculino", telefono: "987654322" },
+        { dni: "72345679", nombre: "Carmen Torres", edad: 25, genero: "Femenino", telefono: "912345679" },
+        { dni: "73456780", nombre: "Andrés Ruiz", edad: 20, genero: "Masculino", telefono: "923456780" },
+        { dni: "74567891", nombre: "Elena Silva", edad: 22, genero: "Femenino", telefono: "934567891" },
+        { dni: "75678902", nombre: "Javier López", edad: 19, genero: "Masculino", telefono: "945678902" },
+        { dni: "76789013", nombre: "Sofía Ramírez", edad: 21, genero: "Femenino", telefono: "956789013" },
+        { dni: "77890124", nombre: "Fernando Cruz", edad: 23, genero: "Masculino", telefono: "967890124" },
+        { dni: "78901235", nombre: "Camila Ortiz", edad: 18, genero: "Femenino", telefono: "978901235" },
+        { dni: "79012346", nombre: "Pedro Gutiérrez", edad: 24, genero: "Masculino", telefono: "989012346" },
+        { dni: "70123457", nombre: "Daniela Morales", edad: 20, genero: "Femenino", telefono: "990123457" }
+    ];
+
+    let attendances = [];
+    let html5QrcodeScanner = null;
+
+    // 2. Navegación entre pestañas
+    function showSection(id) {
+        document.getElementById('students-section').classList.add('hidden');
+        document.getElementById('attendance-section').classList.add('hidden');
+        document.getElementById(id).classList.remove('hidden');
+    }
+
+    // 3. Renderizar Estudiantes
+    function renderStudents() {
+        const tbody = document.getElementById('students-table-body');
+        tbody.innerHTML = '';
+        students.forEach((s, index) => {
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${s.dni}</strong></td>
+                    <td>${s.nombre}</td>
+                    <td>${s.edad}</td>
+                    <td>${s.genero}</td>
+                    <td>${s.telefono}</td>
+                    <td class="action-btns">
+                        <button onclick="editStudent(${index})" style="background-color: #F59E0B;">✏️</button>
+                        <button onclick="deleteStudent(${index})" class="danger">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    // 4. CRUD con SweetAlert2
+    function addStudent() {
+        Swal.fire({
+            title: 'Registrar Estudiante',
+            html: `
+                <input id="swal-dni" class="swal2-input" placeholder="DNI">
+                <input id="swal-nombre" class="swal2-input" placeholder="Nombre Completo">
+                <input id="swal-edad" type="number" class="swal2-input" placeholder="Edad">
+                <select id="swal-genero" class="swal2-input" style="width: 70%;"><option>Masculino</option><option>Femenino</option></select>
+                <input id="swal-tel" class="swal2-input" placeholder="Teléfono">
+            `,
+            confirmButtonText: 'Guardar',
+            preConfirm: () => {
+                const dni = document.getElementById('swal-dni').value;
+                const nombre = document.getElementById('swal-nombre').value;
+                if (!dni || !nombre) { Swal.showValidationMessage('DNI y Nombre son obligatorios'); return false; }
+                return {
+                    dni, nombre,
+                    edad: document.getElementById('swal-edad').value,
+                    genero: document.getElementById('swal-genero').value,
+                    telefono: document.getElementById('swal-tel').value
+                };
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                students.push(result.value);
+                renderStudents();
+                Swal.fire('Guardado', 'El estudiante ha sido registrado.', 'success');
+            }
+        });
+    }
+
+    function editStudent(index) {
+        const s = students[index];
+        Swal.fire({
+            title: 'Editar Estudiante',
+            html: `
+                <input id="swal-dni" class="swal2-input" value="${s.dni}">
+                <input id="swal-nombre" class="swal2-input" value="${s.nombre}">
+                <input id="swal-edad" type="number" class="swal2-input" value="${s.edad}">
+                <select id="swal-genero" class="swal2-input" style="width: 70%;">
+                    <option ${s.genero === 'Masculino' ? 'selected' : ''}>Masculino</option>
+                    <option ${s.genero === 'Femenino' ? 'selected' : ''}>Femenino</option>
+                </select>
+                <input id="swal-tel" class="swal2-input" value="${s.telefono}">
+            `,
+            confirmButtonText: 'Actualizar',
+            preConfirm: () => {
+                students[index] = {
+                    dni: document.getElementById('swal-dni').value,
+                    nombre: document.getElementById('swal-nombre').value,
+                    edad: document.getElementById('swal-edad').value,
+                    genero: document.getElementById('swal-genero').value,
+                    telefono: document.getElementById('swal-tel').value
+                };
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                renderStudents();
+                Swal.fire('Actualizado', 'Los datos fueron modificados.', 'success');
+            }
+        });
+    }
+
+    function deleteStudent(index) {
+        Swal.fire({
+            title: '¿Estás seguro?',
+            text: "No podrás revertir esto.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#EF4444',
+            cancelButtonColor: '#6B7280',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                students.splice(index, 1);
+                renderStudents();
+                Swal.fire('Eliminado', 'El registro fue borrado.', 'success');
+            }
+        });
+    }
+
+    // 5. Escáner QR para Asistencia
+    function startScanner() {
+        if(html5QrcodeScanner) return; // Ya está corriendo
+        
+        html5QrcodeScanner = new Html5Qrcode("reader");
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+        html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
+        .catch(err => {
+            Swal.fire('Error', 'No se pudo acceder a la cámara. Verifica los permisos.', 'error');
+        });
+    }
+
+    function stopScanner() {
+        if(html5QrcodeScanner) {
+            html5QrcodeScanner.stop().then(() => {
+                html5QrcodeScanner.clear();
+                html5QrcodeScanner = null;
+            });
+        }
+    }
+
+    function onScanSuccess(decodedText) {
+        // Asumimos que el QR contiene el DNI del estudiante
+        const dniScanned = decodedText.trim();
+        const student = students.find(s => s.dni === dniScanned);
+        
+        stopScanner(); // Pausar escáner para evitar múltiples lecturas
+
+        if (student) {
+            const fechaHora = new Date().toLocaleString('es-PE');
+            attendances.push({ fecha: fechaHora, nombre: student.nombre, dni: student.dni, estado: 'Presente' });
+            renderAttendances();
+            Swal.fire('Asistencia Registrada', `Estudiante: ${student.nombre}`, 'success')
+            .then(() => startScanner()); // Reiniciar escáner
+        } else {
+            Swal.fire('No encontrado', `No hay estudiante registrado con DNI: ${dniScanned}`, 'error')
+            .then(() => startScanner());
+        }
+    }
+
+    function renderAttendances() {
+        const tbody = document.getElementById('attendance-table-body');
+        tbody.innerHTML = '';
+        attendances.slice().reverse().forEach((a) => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${a.fecha}</td>
+                    <td><strong>${a.nombre}</strong></td>
+                    <td>${a.dni}</td>
+                    <td style="color: #10B981; font-weight: bold;">✔️ ${a.estado}</td>
+                </tr>
+            `;
+        });
+    }
+
+    // 6. Exportar Backup
+    function exportData() {
+        const backupData = {
+            fechaExportacion: new Date().toLocaleString(),
+            estudiantes: students,
+            asistencias: attendances
+        };
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href",     dataStr);
+        downloadAnchorNode.setAttribute("download", "backup_estudiantes_" + Date.now() + ".json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+        
+        Swal.fire('Exportado', 'El archivo de backup se ha descargado.', 'success');
+    }
+
+    // Inicializar app
+    renderStudents();
+
+</script>
+</body>
+</html>
